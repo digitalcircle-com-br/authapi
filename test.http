@@ -1,0 +1,16 @@
+POST http://localhost:8080/auth/login
+
+{
+    "username":"root",
+    "password":"toor"
+}
+
+###
+
+GET http://localhost:8080/auth/check
+Set-Cookie: X-SESSIONID=FuYQ4ajjbHY-myWCMczkwUNxpFFG
+
+###
+
+GET http://localhost:8080/auth/tenant
+Set-Cookie: X-SESSIONID=FuYQ4ajjbHY-myWCMczkwUNxpFFG
