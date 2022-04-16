@@ -7,36 +7,43 @@ import (
 
 	"github.com/digitalcircle-com-br/random"
 	"github.com/digitalcircle-com-br/service"
+	"golang.org/x/crypto/bcrypt"
 )
-
-const COOKIE = "X-SESSIONID"
-
-type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-type LoginResponse struct {
-}
 
 func Run() error {
 	service.Init("auth")
-	//db, err := service.DBN("auth")
-	// if err != nil {
-	// 	return err
-	// }
-	service.HttpHandle("/login", http.MethodPost, "", func(ctx context.Context, in *LoginRequest) (out *LoginResponse, err error) {
+
+	service.HttpHandle("/login", http.MethodPost, "", func(ctx context.Context, in *service.LoginRequest) (out *service.LoginResponse, err error) {
+		if in.Tenant == "" {
+			in.Tenant = "auth"
+		}
+		db, close, err := service.DBN(in.Tenant)
+		if err != nil {
+			return
+		}
+		defer close()
+		ptrTrue := true
+		user := &service.SecUser{Username: in.Username, Enabled: &ptrTrue}
+
+		err = db.Find(user).First(user).Error
+		if err != nil {
+			return
+		}
+		err = bcrypt.CompareHashAndPassword([]byte(in.Password), []byte(user.Hash))
+		if err != nil {
+			return
+		}
 
 		id := random.StrTSNano(16)
-		service.DataHSet(id, "user", in.Username, "tenant", "default", "*", "*")
-		ck := http.Cookie{Name: COOKIE, Value: id, Path: "/", Expires: time.Now().Add(time.Hour * 24 * 365 * 10), HttpOnly: true}
+		service.DataHSet("session."+id, "user", in.Username, "tenant", user.Tenant, "perm.*", "*", "at", time.Now().String())
+		ck := http.Cookie{Name: service.COOKIE, Value: id, Path: "/", Expires: time.Now().Add(time.Hour * 24 * 365 * 10), HttpOnly: true}
 		http.SetCookie(service.CtxRes(ctx), &ck)
 		return
 	})
 	service.HttpHandle("/logout", http.MethodGet, "", func(ctx context.Context, in service.EMPTY_TYPE) (out string, err error) {
 		s := service.CtxSessionID(ctx)
 		_, err = service.DataDel(s)
-		ck := http.Cookie{Name: COOKIE, Value: "", Path: "/", Expires: time.Now().Add(time.Hour * -1 * 24 * 365 * 10), HttpOnly: true}
+		ck := http.Cookie{Name: service.COOKIE, Value: "", Path: "/", Expires: time.Now().Add(time.Hour * -1 * 24 * 365 * 10), HttpOnly: true}
 		http.SetCookie(service.CtxRes(ctx), &ck)
 		return
 	})
