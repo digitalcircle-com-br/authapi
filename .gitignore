@@ -16,3 +16,4 @@
 deploy/svc
 go.work
 go.work.sum
+cmd/__debug_bin
